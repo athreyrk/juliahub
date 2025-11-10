@@ -1,6 +1,6 @@
 using ModelingToolkit
 using DifferentialEquations
-using Symbolics
+# using Symbolics
 # using Plots
 using ModelingToolkit: t_nounits as t, D_nounits as der
 
@@ -11,6 +11,7 @@ Tatm = 20 + 273.15 # normal temperature
 wrootT_pA = sqrt(k/R*(2/(k+1))^((k+1)/(k-1)))
 prCrit = ((k+1)/2)^(k/(k-1))
 cp = 1005
+cv = cp / k
 
 pars = @parameters begin
     p0 = 100 * 6894.76 + patm
@@ -24,13 +25,17 @@ pars = @parameters begin
     hext = 5
 end
 
+Ae = pi/4 * de^2
+A = pi/4 * D^2
+
+
 vars = @variables begin
     p(t) = patm
-    T(t) = T0
-    rho(t) = patm / (R * T0)
-    mdot(t) = wrootT_pA * p0 / sqrt(T0) * pi/4 * de^2
-    vol(t) = pi/4 * D^2 * S
-    m(t) = patm / (R * T0) * S * pi/4 * D^2
+    T(t) = Tatm
+    rho(t) = patm / (R * Tatm)
+    # mdot(t) = wrootT_pA * p0 / sqrt(T0) * pi/4 * de^2
+    vol(t) = A * S
+    m(t) = rho * vol
     Twall(t) = Tatm
     M(t) = 1
     Tin(t)
@@ -39,27 +44,30 @@ vars = @variables begin
     Q(t)
     x(t) = S
     h(t)
+    Vin(t)
 end
 
 eqs = [
     # mass balance
-    vol * rho / p * der(p) - vol * rho / T * der(T) + rho * der(vol) ~ mdot
+    vol * rho / p * der(p) - vol * rho / T * der(T) + rho * der(vol) ~ der(m)#mdot
 
     # definition of derivatives
-    der(m) ~ mdot
-    der(x) ~ V
+    # der(m) ~ mdot
+    # der(x) ~ V
+    x ~ S + V*t
 
     vol ~ pi/4 * D^2 * x
+    # der(vol) ~ A * V
 
     p ~ rho * R * T # ideal gas
 
     rho ~ m / vol
 
     # mach number
-    ifelse(p0/p > prCrit, 
-        M ~ 1
+    M ~ ifelse(p0/p > prCrit, 
+        1
         ,
-        M ~ sqrt(2/(k-1) * ((p0/p)^((k-1)/k) - 1))
+        sqrt(2/(k-1) * ((p0/p)^((k-1)/k) - 1))
         )
 
     # inlet temp
@@ -69,10 +77,12 @@ eqs = [
     p/p0 ~ (rhoin/(p0/(R*T0)))^k
 
     # mass flow rate
-    mdot ~ rhoin * pi/4 * de^2 * M * sqrt(k * R * Tin)
+    # mdot ~ rhoin * pi/4 * de^2 * M * sqrt(k * R * Tin)
+    Vin ~ M * sqrt(k * R * Tin)
+    der(m) ~ rhoin * Ae * Vin
 
     # energy flow at inlet
-    phi ~ mdot * cp * Tin
+    phi ~ cp * Tin + (1/2)*Vin^2
 
     # heat transfer between part of wall in contact with top chamber
     Q ~ pi * D * x * hint * (der(T) - der(Twall))
@@ -81,11 +91,14 @@ eqs = [
     Q ~ hext * pi * D * L * (der(Twall) - Tatm)
 
     # enthalpy of gas
-    h ~ m * cp * T
+    h ~ cp * T
 
     # energy balance
-    vol * (h/(R*T) - 1) * der(p) + vol * rho * (cp - h / T) * der(T) + rho * h * der(vol) ~ phi + Q
+    vol * (h/(R*T) - 1) * der(p) + vol * rho * cv * der(T) + rho * h * der(vol) ~ phi + Q
     
 ]
 
-@named sys = System(eqs, vars, pars)
+@named sys = ODESystem(eqs, t, vars, pars)
+foo = complete(sys)
+tspan = (0, (L-2*S)/V)
+prob = ODEProblem(foo, [], tspan, pars)
