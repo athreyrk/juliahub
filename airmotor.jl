@@ -27,7 +27,8 @@ end
 
 Ae = pi/4 * de^2
 A = pi/4 * D^2
-
+Tstar = T0 * (2/(k+1))
+rhostar = p0/(R*T0) * ((2/k+1)^(1/(k-1)))
 
 vars = @variables begin
     p(t) = patm
@@ -38,8 +39,8 @@ vars = @variables begin
     m(t) = rho * vol
     Twall(t) = Tatm
     M(t) = 1
-    Tin(t)
-    rhoin(t)
+    Tin(t) = Tstar
+    rhoin(t) = rhostar
     phi(t)
     Q(t)
     x(t) = S
@@ -53,13 +54,13 @@ eqs = [
 
     # definition of derivatives
     # der(m) ~ mdot
-    # der(x) ~ V
-    x ~ S + V*t
+    der(x) ~ V
+    # x ~ S + V*t
 
     vol ~ pi/4 * D^2 * x
     # der(vol) ~ A * V
 
-    p ~ rho * R * T # ideal gas
+    # p ~ rho * R * T # ideal gas
 
     rho ~ m / vol
 
@@ -70,11 +71,14 @@ eqs = [
         sqrt(2/(k-1) * ((p0/p)^((k-1)/k) - 1))
         )
 
-    # inlet temp
-    Tin ~ T0 / (1 + (k-1)/2 * M^2)
 
     # isentropic flow between reservoir and inlet
-    p/p0 ~ (rhoin/(p0/(R*T0)))^k
+    Tin ~ T0 / (1 + (k-1)/2 * M^2)
+
+    # ideal gas equation at inlet, same pressure as inside
+    rhoin*Tin ~ rho*T
+
+    # p/p0 ~ (rhoin/(p0/(R*T0)))^k
 
     # mass flow rate
     # mdot ~ rhoin * pi/4 * de^2 * M * sqrt(k * R * Tin)
@@ -84,11 +88,11 @@ eqs = [
     # energy flow at inlet
     phi ~ cp * Tin + (1/2)*Vin^2
 
-    # heat transfer between part of wall in contact with top chamber
-    Q ~ pi * D * x * hint * (der(T) - der(Twall))
+    # heat "addition" from part of wall in contact with top chamber
+    Q ~ -pi * D * x * hint * (der(T) - der(Twall))
 
-    # heat transfer between entire wall and atmosphere (same Q because wall doesn't store heat)
-    Q ~ hext * pi * D * L * (der(Twall) - Tatm)
+    # heat "loss" from entire wall to atmosphere (same Q because wall doesn't store heat)
+    -Q ~ hext * pi * D * L * (der(Twall) - Tatm)
 
     # enthalpy of gas
     h ~ cp * T
@@ -99,6 +103,6 @@ eqs = [
 ]
 
 @named sys = ODESystem(eqs, t, vars, pars)
-foo = complete(sys)
+foo = mtkcompile(sys)
 tspan = (0, (L-2*S)/V)
 prob = ODEProblem(foo, [], tspan, pars)
