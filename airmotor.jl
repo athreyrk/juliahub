@@ -4,13 +4,13 @@ using DifferentialEquations
 # using Plots
 using ModelingToolkit: t_nounits as t, D_nounits as der
 
-patm = 101325
+patm = 101325.0
 k = 1.4
-R = 287
+R = 287.0
 Tatm = 20 + 273.15 # normal temperature
 wrootT_pA = sqrt(k/R*(2/(k+1))^((k+1)/(k-1)))
 prCrit = ((k+1)/2)^(k/(k-1))
-cp = 1005
+cp = 1005.0
 cv = cp / k
 
 pars = @parameters begin
@@ -21,8 +21,8 @@ pars = @parameters begin
     de = 10 / 1000
     S = 0.2 / 39.37
     V = 2 / 39.37
-    hint = 100
-    hext = 5
+    hint = 100.0
+    hext = 5.0
 end
 
 Ae = pi/4 * de^2
@@ -35,10 +35,10 @@ vars = @variables begin
     T(t) = Tatm
     rho(t) = patm / (R * Tatm)
     # mdot(t) = wrootT_pA * p0 / sqrt(T0) * pi/4 * de^2
-    vol(t) = A * S
+    vol(t)# = A * S
     m(t) = rho * vol
     Twall(t) = Tatm
-    M(t) = 1
+    M(t)# = 1
     Tin(t) = Tstar
     rhoin(t) = rhostar
     phi(t)
@@ -54,8 +54,9 @@ eqs = [
 
     # definition of derivatives
     # der(m) ~ mdot
-    der(x) ~ V
-    # x ~ S + V*t
+    # der(x) ~ V
+    # V ~ der(x)
+    x ~ S + V*t
 
     vol ~ pi/4 * D^2 * x
     # der(vol) ~ A * V
@@ -102,7 +103,7 @@ eqs = [
     
 ]
 
-@named sys = ODESystem(eqs, t, vars, pars)
-foo = mtkcompile(sys)
-tspan = (0, (L-2*S)/V)
-prob = ODEProblem(foo, [], tspan, pars)
+@named nlsys = ODESystem(eqs, t, vars, pars)
+sys = structural_simplify(nlsys)
+prob = NonlinearProblem(sys, [], [])
+sol = solve(prob)
