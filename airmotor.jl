@@ -1,7 +1,7 @@
 using ModelingToolkit
 using DifferentialEquations
 # using Symbolics
-using Plots
+# using Plots
 using ModelingToolkit: t_nounits as t, D_nounits as der
 # using IfElse
 
@@ -55,7 +55,7 @@ end
 # pr = p0/p
 # tr = T0/Te
 # vol = A*(L-S)
-# initvals = [
+initvals = [
     # p => patm
     # T => T0
     # vol => A*S
@@ -67,8 +67,8 @@ end
     # x => S
     # Ve => sqrt(k*R*Tstar)
     # pr => p0/patm
-    # tr => T0/Tstar
-# ]
+    tr => T0/Tstar
+]
 # @register_symbolic(t < tmid)
 
 eqs = [
@@ -145,7 +145,7 @@ eqs = [
 
 # @named nlsys = ODESystem(eqs, t, vars, pars)
 # sys = structural_simplify(nlsys)
-prob = ODEProblem(sys, [], (0.0, 1.8); fully_determined = true)#, guesses = initvals)
+prob = ODEProblem(sys, [], (0.0, 1.8); fully_determined = true, guesses = initvals)
 sol = solve(prob)
 # traced_sys = modelingtoolkitize(prob)
 # compiled_sys = mtkcompile(dae_index_lowering(traced_sys))
