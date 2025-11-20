@@ -1,7 +1,7 @@
 using ModelingToolkit
 using DifferentialEquations
 # using Symbolics
-# using Plots
+using Plots
 using ModelingToolkit: t_nounits as t, D_nounits as der
 # using IfElse
 
@@ -167,4 +167,4 @@ sol = solve(prob)
 # compiled_sys = mtkcompile(dae_index_lowering(traced_sys))
 # new_prob = ODEProblem(compiled_sys, Pair[], (0, tmid), [])
 # sol = solve(new_prob)
-# plot(sol.t, sol[T])
+plot(sol[t], sol[T-273.15])
