@@ -114,8 +114,16 @@ eqs = [
     # isentropic flow at the inlet/ exit
     pr ~ tr ^ (k/(k-1))
     
-    # pressure at inlet/ exit is same as inside the chamber
-    R * rhoe * Te ~ p
+    R * rhoe * Te ~ 
+        ifelse(t < tmid, # e denotes inlet
+            ifelse(pr > prCrit,
+                p0/prCrit, # critical pressure w.r.t. reservoir
+                p) # same as inside
+            , # e denotes exit
+            ifelse(pr > prCrit,
+                p/prCrit, # critical pressure w.r.t. atmosphere
+                patm) # same as outside
+        )
 
     # velocity at inlet/ exit
     Ve ~ Me * sqrt(k * R * Te)
@@ -130,14 +138,14 @@ eqs = [
     Q ~ -pi * D * x * hint * (der(T) - der(Twall))
 
     # heat "loss" from entire wall to atmosphere (same Q because wall doesn't store heat)
-    -Q ~ hext * pi * D * L * (der(Twall) - Tatm)
+    -Q ~ hext * pi * D * L * der(Twall) # der(Tatm) = 0
 
     # enthalpy of gas
     # h ~ cp * T
 
     # energy balance
     # vol * (h/(R*T) - 1) * der(p) + vol * rho * cv * der(T) + rho * h * der(vol) ~ cp*Te + (1/2)*Ve^2 + Q/der(m)
-    cv/R*vol*der(p) + cv*der(T) + cp*T*der(vol)/vol ~ cp*Te + 1/2 * Ve^2 + Q/m
+    m*(cv*T*der(p)/p + cv*der(T) + cp*T*der(vol)/vol) ~ der(m)*(cp*Te + 1/2 * Ve^2) + Q
     
 ]
 
