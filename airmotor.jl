@@ -29,7 +29,7 @@ end
 Ae = pi/4 * de^2
 A = pi/4 * D^2
 Tstar = T0 * (2/(k+1))
-rhostar = p0/(R*T0) * ((2/k+1)^(1/(k-1)))
+rhostar = p0/(R*T0) * (2/(k+1))^(1/(k-1))
 tmid = (L - 2*S) / V
 
 vars = @variables begin
@@ -50,6 +50,7 @@ vars = @variables begin
     Ve(t)# = sqrt(k*R*Tstar)
     pr(t)# = p0/p
     tr(t)# = T0/Te
+    pe(t)# = p0/prCrit
 end
 # Me = 1.0
 # pr = p0/p
@@ -112,9 +113,16 @@ eqs = [
     # tr ~ T0/Te
 
     # isentropic flow at the inlet/ exit
-    pr ~ tr ^ (k/(k-1))
+    tr ^ (k/(k-1)) ~ ifelse(t < tmid,
+        p0/pe
+        ,
+        p/pe
+        )
     
-    R * rhoe * Te ~ 
+    # ideal gas law at the inlet/ exit
+    R * rhoe * Te ~ pe
+
+    pe ~
         ifelse(t < tmid, # e denotes inlet
             ifelse(pr > prCrit,
                 p0/prCrit, # critical pressure w.r.t. reservoir
