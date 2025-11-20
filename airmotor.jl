@@ -34,14 +34,14 @@ tmid = (L - 2*S) / V
 
 vars = @variables begin
     p(t) = patm
-    T(t)# = T0
+    T(t)# = Tatm
     # rho(t) = patm / (R * T0)
     # mdot(t) = wrootT_pA * p0 / sqrt(T0) * pi/4 * de^2
     vol(t)# = A * x
     m(t) = p * vol / (R * T)
     Twall(t) = Tatm
     Me(t)# = 1
-    Te(t) = Tstar
+    Te(t)# = Tstar
     rhoe(t)# = rhostar
     # phi(t)
     Q(t)
@@ -56,20 +56,20 @@ end
 # pr = p0/p
 # tr = T0/Te
 # vol = A*(L-S)
-initvals = [
+initvals = Dict([
     # p => patm
     # T => T0
     # vol => A*S
     # m => patm * A*S/(R*T0)
     # Twall => Tatm
     # Me => 1.0
-    # Te => Tstar
+    Te => Tstar
     # rhoe => rhostar
     # x => S
     # Ve => sqrt(k*R*Tstar)
     # pr => p0/patm
     tr => T0/Tstar
-]
+])
 # @register_symbolic(t < tmid)
 
 eqs = [
@@ -143,17 +143,17 @@ eqs = [
     # phi ~ cp * Te + (1/2)*Ve^2
 
     # heat "addition" from part of wall in contact with top chamber
-    Q ~ -pi * D * x * hint * (der(T) - der(Twall))
+    Q ~ -pi * D * x * hint * (T - Twall)
 
     # heat "loss" from entire wall to atmosphere (same Q because wall doesn't store heat)
-    -Q ~ hext * pi * D * L * der(Twall) # der(Tatm) = 0
+    -Q ~ hext * pi * D * L * (Twall - Tatm)
 
     # enthalpy of gas
     # h ~ cp * T
 
     # energy balance
     # vol * (h/(R*T) - 1) * der(p) + vol * rho * cv * der(T) + rho * h * der(vol) ~ cp*Te + (1/2)*Ve^2 + Q/der(m)
-    m*(cv*T*der(p)/p + cv*der(T) + cp*T*der(vol)/vol) ~ der(m)*(cp*Te + 1/2 * Ve^2) + Q
+    m*(cv*T*der(p)/p + cv*der(T) + cp*T*der(vol)/vol) ~ der(m)*(cp*Te + 1/2 * Ve^2) + der(Q)
     
 ]
 
