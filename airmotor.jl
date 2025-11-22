@@ -6,8 +6,7 @@ using Plots
 patm = 101325.0
 k = 1.4
 R = 287.0
-Tatm = 20 + 273.15 # normal temperature
-# wrootT_pA = sqrt(k/R*(2/(k+1))^((k+1)/(k-1)))
+Tatm = 25 + 273.15 # normal temperature
 prCrit = ((k+1)/2)^(k/(k-1))
 cp = 1005.0
 cv = cp / k
@@ -32,38 +31,23 @@ tmid = (L - 2*S) / V
 
 vars = @variables begin
     p(t) = patm
-    T(t)# = Tatm
-    # rho(t) = patm / (R * T0)
-    # mdot(t) = wrootT_pA * p0 / sqrt(T0) * pi/4 * de^2
-    vol(t)# = A * x
+    T(t)
+    vol(t)
     m(t) = p * vol / (R * T)
     Twall(t) = Tatm
-    Me(t)# = 1
-    Te(t)# = Tstar
-    rhoe(t)# = rhostar
-    # phi(t)
-    Q(t)
-    x(t)# = S
-    # h(t)
-    Ve(t)# = sqrt(k*R*Tstar)
-    pr(t)# = p0/p
-    tr(t)# = T0/Te
-    pe(t)# = p0/prCrit
-    # direction(t)
+    Me(t)
+    Te(t)
+    rhoe(t)
+    Q(t)# = 0
+    x(t)
+    Ve(t)
+    pr(t)
+    tr(t)
+    pe(t)
 end
 
 initvals = Dict([
-    # p => patm
-    # T => T0
-    # vol => A*S
-    # m => patm * A*S/(R*T0)
-    # Twall => Tatm
-    # Me => 1.0
     Te => Tstar
-    # rhoe => rhostar
-    # x => S
-    # Ve => sqrt(k*R*Tstar)
-    # pr => p0/patm
     tr => T0/Tstar
     ])
 
@@ -75,19 +59,14 @@ end
 eqs = [
     # derivative of ideal gas law (same as equation of mass balance)
     der(p) / p + der(vol) / vol ~ der(m) / m + der(T) / T
-    # der(p) / p ~ der(m) / m + der(T) / T
-    # vol * rho / p * der(p) - vol * rho / T * der(T) + rho * der(vol) ~ der(m)#mdot
 
-    # p * vol ~ m * R * T
     # motion of cylinder (defines volume change)
-    # direction ~ smooth_transition(t, tmid, 1.0, -1.0)
-    x ~ ifelse(t < tmid,#-2e-5, 
+    x ~ ifelse(t < tmid,
         S + V*t
         ,
         L - S - V*(t-tmid)
         )
-    # x ~ S + V*t*direction
-    # x ~ smooth_transition(t, tmid, S+V*t, L-S-V*t)
+    
     vol ~ A * x
 
     # mach number at inlet/ exit (choked at 1 for pressure ratio more than critical)
@@ -96,15 +75,13 @@ eqs = [
         ,
         sqrt(2/(k-1) * ((pr)^((k-1)/k) - 1))
         )
-    # Me ~ 1.0
     
     # definition of pressure ratio
-    pr ~ ifelse(t < tmid,#-2e-5,
+    pr ~ ifelse(t < tmid,
         p0/p
         ,
         p/patm
         )
-    # pr ~ p0/p
 
     # definition of temperature ratio
     tr ~ ifelse(t < tmid,
@@ -112,7 +89,6 @@ eqs = [
         ,
         T/Te
         )
-    # tr ~ smooth_transition(t, tmid, T0/Te, T/Te)
 
     # isentropic flow at the inlet/ exit
     tr ^ (k/(k-1)) ~ ifelse(t < tmid,
@@ -120,7 +96,6 @@ eqs = [
         ,
         p/pe
         )
-    # tr ^ (k/(k-1)) ~ smooth_transition(t, tmid, p0/pe, p/pe)
 
     # ideal gas law at the inlet/ exit
     R * rhoe * Te ~ pe
@@ -134,52 +109,36 @@ eqs = [
                 p/prCrit, # critical pressure w.r.t. atmosphere
                 patm) # same as outside
         )
-    # pe ~
-    #     ifelse(t < tmid, # e denotes inlet
-    #         ifelse(pr > prCrit,
-    #             p0/prCrit, # critical pressure w.r.t. reservoir
-    #             p) # same as inside
-    #         , # e denotes exit
-    #         ifelse(pr > prCrit,
-    #             p/prCrit, # critical pressure w.r.t. atmosphere
-    #             patm) # same as outside
-    #     )
-
+    
     # velocity at inlet/ exit
     Ve ~ Me * sqrt(k * R * Te)
 
     # mass flow rate at inlet/ exit
-    der(m) ~ ifelse(t < tmid, rhoe * Ae * Ve, -rhoe * Ae * Ve)#  * direction
-    # der(m) ~ rhoe * Ae * Ve * direction
-    # energy flow at inlet
-    # phi ~ cp * Te + (1/2)*Ve^2
+    der(m) ~ ifelse(t < tmid,
+        rhoe * Ae * Ve
+        ,
+        -rhoe * Ae * Ve
+        )
 
-    # heat "addition" from part of wall in contact with top chamber
+    # rate of heat "addition" from part of wall in contact with top chamber
     Q ~ -pi * D * x * hint * (T - Twall)
 
-    # heat "loss" from entire wall to atmosphere (same Q because wall doesn't store heat)
+    # rate of heat "loss" from entire wall to atmosphere (same Q because wall doesn't store heat)
     -Q ~ hext * pi * D * L * (Twall - Tatm)
 
-    # enthalpy of gas
-    # h ~ cp * T
-
-    # energy balance
-    # vol * (h/(R*T) - 1) * der(p) + vol * rho * cv * der(T) + rho * h * der(vol) ~ cp*Te + (1/2)*Ve^2 + Q/der(m)
-    # m*(cv*T*der(p)/p + cv*der(T) + cp*T*der(vol)/vol) ~ der(m)*(cp*Te + 1/2 * Ve2) + der(Q)
-    m*(cv*T*der(p)/p + cp*T*der(vol)/vol) ~ der(m)*(cp*Te + 1/2 * Ve^2) + der(Q)
+    # energy balance (dU/dT = m(cp - h/T) = 0)
+    m*(cv*T*der(p)/p + cp*T*der(vol)/vol) ~ der(m)*(cp*Te + 1/2 * Ve^2) + Q
     
 ]
 
 @mtkcompile sys = System(eqs, t, vars, pars)
 
-# @named nlsys = ODESystem(eqs, t, vars, pars)
-# sys = structural_simplify(nlsys)
 prob = ODEProblem(sys, [], (0.0, 3.6); fully_determined = true, guesses = initvals)
-sol = solve(prob)#, force_dtmin=true)
-# alwaysFalse(a...) = false
-# sol = solve(prob, adaptive=false, maxiters=1e6, unstable_check=alwaysFalse, tstops = collect(Iterators.flatten([0:1e-5:0.2, 0.3:0.1:1.5, 1.5:1e-5:2.5, 2.6:0.1:3.6])))
-# traced_sys = modelingtoolkitize(prob)
-# compiled_sys = mtkcompile(dae_index_lowering(traced_sys))
-# new_prob = ODEProblem(compiled_sys, Pair[], (0, tmid), [])
-# sol = solve(new_prob)
-plot(sol[t], sol[T-273.15])
+sol = solve(prob)
+
+display(plot(sol[t], sol[T-273.15], xlabel="sec", ylabel="degC", label="T"))
+display(plot(sol[t], sol[p], xlabel="sec", ylabel="Pa", label="p"))
+display(plot(sol[t], sol[m], xlabel="sec", ylabel="kg", label="m"))
+display(plot(sol[t], sol[m/vol], xlabel="sec", ylabel="kg/m^3", label="rho"))
+display(plot(sol[t], sol[Twall-273.15], xlabel="sec", ylabel="degC", label="Twall"))
+display(plot(sol[t], sol[-Q], xlabel="sec", ylabel="W", label="-Q", title="Rate of heat transfer from gas to wall"))
