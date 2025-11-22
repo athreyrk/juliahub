@@ -137,7 +137,11 @@ eqs = [
     Ve ~ Me * sqrt(k * R * Te)
 
     # mass flow rate at inlet/ exit
-    der(m) ~ rhoe * Ae * Ve
+    der(m) ~ ifelse(t < tmid, 
+        rhoe * Ae * Ve
+        ,
+        -rhoe * Ae * Ve
+        )
 
     # energy flow at inlet
     # phi ~ cp * Te + (1/2)*Ve^2
