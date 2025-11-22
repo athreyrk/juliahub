@@ -153,7 +153,8 @@ eqs = [
 
     # energy balance
     # vol * (h/(R*T) - 1) * der(p) + vol * rho * cv * der(T) + rho * h * der(vol) ~ cp*Te + (1/2)*Ve^2 + Q/der(m)
-    m*(cv*T*der(p)/p + cv*der(T) + cp*T*der(vol)/vol) ~ der(m)*(cp*Te + 1/2 * Ve^2) + der(Q)
+    # m*(cv*T*der(p)/p + cv*der(T) + cp*T*der(vol)/vol) ~ der(m)*(cp*Te + 1/2 * Ve^2) + der(Q)
+    m*(cv*T*der(p)/p + cp*T*der(vol)/vol) ~ der(m)*(cp*Te + 1/2 * Ve^2) + der(Q)
     
 ]
 
