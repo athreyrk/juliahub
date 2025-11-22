@@ -40,17 +40,18 @@ vars = @variables begin
     vol(t)# = A * x
     m(t) = p * vol / (R * T)
     Twall(t) = Tatm
-    Me(t)# = 1
+    Me2(t)# = 1
     Te(t)# = Tstar
     rhoe(t)# = rhostar
     # phi(t)
     Q(t)
     x(t)# = S
     # h(t)
-    Ve(t)# = sqrt(k*R*Tstar)
+    Ve2(t)# = sqrt(k*R*Tstar)
     pr(t)# = p0/p
     tr(t)# = T0/Te
     pe(t)# = p0/prCrit
+    direction(t)
 end
 # Me = 1.0
 # pr = p0/p
@@ -69,8 +70,34 @@ initvals = Dict([
     # Ve => sqrt(k*R*Tstar)
     # pr => p0/patm
     tr => T0/Tstar
-])
+    ])
+    
+# initeqs = [
+#         der(m) ~ wrootT_pA * p0/sqrt(T0) * Ae
+#         der(Twall) ~ 0
+#         der(Te) ~ 0
+#         der(der(p)) ~ 0
+#         der(der(T)) ~ 0
+#         der(rhoe) ~ 0
+#         der(tr) ~ 0
+# ]
+
+# u0 = Dict([
+#         der(m) => wrootT_pA * p0/sqrt(T0) * Ae
+#         der(Twall) => 0
+#         der(Te) => 0
+#         der(der(p)) => 0
+#         der(der(T)) => 0
+#         der(rhoe) => 0
+#         der(tr) => 0
+# ])
+
 # @register_symbolic(t < tmid)
+
+function smooth_transition(in, mid, lo, hi; steepness = 100)
+    # if in < mid, lo, else, hi, end
+    (hi-lo)/2 * tanh(steepness*(in-mid)) + (hi+lo)/2
+end
 
 eqs = [
     # derivative of ideal gas law (same as equation of mass balance)
@@ -80,50 +107,52 @@ eqs = [
 
     # p * vol ~ m * R * T
     # motion of cylinder (defines volume change)
-    x ~ ifelse(t < tmid, 
+    direction ~ smooth_transition(t, tmid, 1.0, -1.0)
+    x ~ ifelse(t < tmid,#-2e-5, 
         S + V*t
         ,
-        L - S - V*t
+        L - S - V*(t-tmid)
         )
-    # x ~ S + V*t
+    # x ~ S + V*t*direction
+    # x ~ smooth_transition(t, tmid, S+V*t, L-S-V*t)
     vol ~ A * x
 
     # mach number at inlet/ exit (choked at 1 for pressure ratio more than critical)
-    Me ~ ifelse(pr > prCrit, 
+    Me2 ~ ifelse(pr > prCrit, 
         1.0
         ,
-        sqrt(2/(k-1) * ((pr)^((k-1)/k) - 1))
+        2/(k-1) * ((pr)^((k-1)/k) - 1)
         )
     # Me ~ 1.0
     
     # definition of pressure ratio
-    pr ~ ifelse(t < tmid,
-        p0/p
+    pr ~ ifelse(t < tmid,#-2e-5,
+        ifelse(p0/p > 1.0, p0/p, 1.0)
         ,
-        p/patm
+        ifelse(p/patm > 1.0, p/patm, 1.0)
         )
     # pr ~ p0/p
 
     # definition of temperature ratio
-    tr ~ ifelse(t < tmid,
-        T0/Te
-        ,
-        T/Te
-        )
-    # tr ~ T0/Te
+    # tr ~ ifelse(t < tmid,
+    #     T0/Te
+    #     ,
+    #     T/Te
+    #     )
+    tr ~ smooth_transition(t, tmid, T0/Te, T/Te)
 
     # isentropic flow at the inlet/ exit
-    tr ^ (k/(k-1)) ~ ifelse(t < tmid,
-        p0/pe
-        ,
-        p/pe
-        )
-    
+    # tr ^ (k/(k-1)) ~ ifelse(t < tmid,
+    #     p0/pe
+    #     ,
+    #     p/pe
+    #     )
+    tr ^ (k/(k-1)) ~ smooth_transition(t, tmid, p0/pe, p/pe)
+
     # ideal gas law at the inlet/ exit
     R * rhoe * Te ~ pe
 
-    pe ~
-        ifelse(t < tmid, # e denotes inlet
+    pe ~ smooth_transition(t, tmid,
             ifelse(pr > prCrit,
                 p0/prCrit, # critical pressure w.r.t. reservoir
                 p) # same as inside
@@ -132,17 +161,22 @@ eqs = [
                 p/prCrit, # critical pressure w.r.t. atmosphere
                 patm) # same as outside
         )
+    # pe ~
+    #     ifelse(t < tmid, # e denotes inlet
+    #         ifelse(pr > prCrit,
+    #             p0/prCrit, # critical pressure w.r.t. reservoir
+    #             p) # same as inside
+    #         , # e denotes exit
+    #         ifelse(pr > prCrit,
+    #             p/prCrit, # critical pressure w.r.t. atmosphere
+    #             patm) # same as outside
+    #     )
 
     # velocity at inlet/ exit
-    Ve ~ Me * sqrt(k * R * Te)
+    Ve2 ~ Me2 * k * R * Te
 
     # mass flow rate at inlet/ exit
-    der(m) ~ ifelse(t < tmid, 
-        rhoe * Ae * Ve
-        ,
-        -rhoe * Ae * Ve
-        )
-
+    der(m) ~ rhoe * Ae * sqrt(Ve2) * direction
     # energy flow at inlet
     # phi ~ cp * Te + (1/2)*Ve^2
 
@@ -158,7 +192,7 @@ eqs = [
     # energy balance
     # vol * (h/(R*T) - 1) * der(p) + vol * rho * cv * der(T) + rho * h * der(vol) ~ cp*Te + (1/2)*Ve^2 + Q/der(m)
     # m*(cv*T*der(p)/p + cv*der(T) + cp*T*der(vol)/vol) ~ der(m)*(cp*Te + 1/2 * Ve^2) + der(Q)
-    m*(cv*T*der(p)/p + cp*T*der(vol)/vol) ~ der(m)*(cp*Te + 1/2 * Ve^2) + der(Q)
+    m*(cv*T*der(p)/p + cp*T*der(vol)/vol) ~ der(m)*(cp*Te + 1/2 * Ve2) + der(Q)
     
 ]
 
@@ -166,8 +200,10 @@ eqs = [
 
 # @named nlsys = ODESystem(eqs, t, vars, pars)
 # sys = structural_simplify(nlsys)
-prob = ODEProblem(sys, [], (0.0, 1.8); fully_determined = true, guesses = initvals)
-sol = solve(prob)
+prob = ODEProblem(sys, [], (0.0, 3.6); fully_determined = true, guesses = initvals)
+sol = solve(prob, force_dtmin=true)
+alwaysFalse(a...) = false
+# sol = solve(prob, adaptive=false, maxiters=1e6, unstable_check=alwaysFalse, tstops = collect(Iterators.flatten([0:1e-5:0.2, 0.3:0.1:1.5, 1.5:1e-5:2.5, 2.6:0.1:3.6])))
 # traced_sys = modelingtoolkitize(prob)
 # compiled_sys = mtkcompile(dae_index_lowering(traced_sys))
 # new_prob = ODEProblem(compiled_sys, Pair[], (0, tmid), [])
