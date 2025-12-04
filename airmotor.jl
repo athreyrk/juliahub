@@ -180,7 +180,7 @@ eqs = [
 
 prob = ODEProblem(sys, [], (0.0, 3.6); fully_determined = true, guesses = initvals)#, substitution_limit = 5, warn_cyclic_dependency = true)
 # alwaysFalse(a...) = false
-sol = solve(prob, Rosenbrock23())#, unstable_check = alwaysFalse, force_dtmin = true)
+sol = solve(prob, Rodas5(), force_dtmin = true)#, unstable_check = alwaysFalse, force_dtmin = true)
 
 # display(plot(sol[t], sol[T[1]-273.15], xlabel="sec", ylabel="degC", label="T"))
 # display(plot(sol[t], sol[p], xlabel="sec", ylabel="Pa", label="p"))
