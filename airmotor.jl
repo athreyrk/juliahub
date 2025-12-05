@@ -28,6 +28,11 @@ Ae = pi/4 * de^2 # m2, area of inlet/exit
 A = pi/4 * D^2 # m2, area of piston
 Tstar = T0 * (2/(k+1)) # critical temperature w.r.t. reservoir
 tmid = (L - 2*S) / V # time at which spool switches
+nCycle = floor(t/tmid) + 1
+
+function isitodd(symb)
+    symb % 2 == 1
+end
 
 vars = @variables begin
     p(t)[1:2] = [patm + 7; patm + 7]
@@ -57,10 +62,10 @@ eqs = [
     der.(p) ./ p + der.(vol) ./ vol ~ der.(m) ./ m + der.(T) ./ T
 
     # motion of cylinder (defines volume change)
-    x[1] ~ ifelse(t < tmid,
-        S + V*t
+    x[1] ~ ifelse(isitodd(nCycle),
+        S + V*(t - (nCycle-1)*tmid)
         ,
-        L - S - V*(t-tmid)
+        L - S - V*(t-(nCycle-1)*tmid)
     )
     x[2] ~ L - x[1]
     vol ~ A .* x
@@ -73,36 +78,36 @@ eqs = [
     )
     
     # definition of pressure ratio
-    pr[1] ~ ifelse(t < tmid,
+    pr[1] ~ ifelse(isitodd(nCycle),
         p0/p[1]
         ,
         p[1]/patm
     )
-    pr[2] ~ ifelse(t < tmid,
+    pr[2] ~ ifelse(isitodd(nCycle),
         p[2]/patm
         ,
         p0/p[2]
     )
 
     # definition of temperature ratio
-    tr[1] ~ ifelse(t < tmid,
+    tr[1] ~ ifelse(isitodd(nCycle),
         T0/Te[1]
         ,
         T[1]/Te[1]
     )
-    tr[2] ~ ifelse(t < tmid,
+    tr[2] ~ ifelse(isitodd(nCycle),
         T[2]/Te[2]
         ,
         T0/Te[2]
     )
 
     # isentropic flow at the inlet/ exit
-    tr[1] ^ (k/(k-1)) ~ ifelse(t < tmid,
+    tr[1] ^ (k/(k-1)) ~ ifelse(isitodd(nCycle),
         p0/pe[1]
         ,
         p[1]/pe[1]
         )
-    tr[2] ^ (k/(k-1)) ~ ifelse(t < tmid,
+    tr[2] ^ (k/(k-1)) ~ ifelse(isitodd(nCycle),
         p[2]/pe[2]
         ,
         p0/pe[2]
@@ -112,7 +117,7 @@ eqs = [
     R .* rhoe .* Te ~ pe
 
     pe[1] ~ 
-    ifelse(t < tmid,
+    ifelse(isitodd(nCycle),
         # e denotes inlet
         ifelse(pr[1] > prCrit,
             p0/prCrit, # critical pressure w.r.t. reservoir
@@ -123,9 +128,11 @@ eqs = [
             patm) # same as outside
     )
     pe[2] ~ 
-    ifelse(t < tmid,
+    ifelse(isitodd(nCycle),
         # e denotes inlet
-            patm # same as outside
+        ifelse(pr[2] > prCrit,
+            p[2]/prCrit, # critical pressure w.r.t. atmosphere
+            patm) # same as outside
         , # e denotes exit
         ifelse(pr[2] > prCrit,
             p0/prCrit, # critical pressure w.r.t. reservoir
@@ -136,12 +143,12 @@ eqs = [
     Ve ~ Me .* sqrt.(k .* R .* Te)
 
     # mass flow rate at inlet/ exit
-    der(m)[1] ~ ifelse(t < tmid,
+    der(m)[1] ~ ifelse(isitodd(nCycle),
         rhoe[1] * Ae * Ve[1]
         ,
         -rhoe[1] * Ae * Ve[1]
     )
-    der(m)[2] ~ ifelse(t < tmid,
+    der(m)[2] ~ ifelse(isitodd(nCycle),
         -rhoe[2] * Ae * Ve[2]
         ,
         rhoe[2] * Ae * Ve[2]
@@ -161,14 +168,16 @@ eqs = [
 
 @mtkcompile sys = System(eqs, t, vars, pars)
 
-prob = ODEProblem(sys, [], (0.0, 3.6); fully_determined = true, guesses = initvals)
+prob = ODEProblem(sys, [], (0.0, 4.0); fully_determined = true, guesses = initvals)
 
 sol = solve(prob, Rodas5(), force_dtmin = true)
 
-display(plot(sol[t], sol[T[1]-273.15], xlabel="sec", ylabel="degC", label="top T"))
-display(plot(sol[t], sol[p[1]], xlabel="sec", ylabel="Pa", label="top p"))
-display(plot(sol[t], sol[m[1]], xlabel="sec", ylabel="kg", label="top m"))
-display(plot(sol[t], sol[m[1]/vol[1]], xlabel="sec", ylabel="kg/m^3", label="top rho"))
+plot(sol[t], sol[x[1]])
+plot!(sol[t], sol[x[2]])
+# display(plot(sol[t], sol[T[1]-273.15], xlabel="sec", ylabel="degC", label="top T"))
+# display(plot(sol[t], sol[p[1]], xlabel="sec", ylabel="Pa", label="top p"))
+# display(plot(sol[t], sol[m[1]], xlabel="sec", ylabel="kg", label="top m"))
+# display(plot(sol[t], sol[m[1]/vol[1]], xlabel="sec", ylabel="kg/m^3", label="top rho"))
 display(plot(sol[t], sol[Twall-273.15], xlabel="sec", ylabel="degC", label="Twall"))
 # display(plot(sol[t], sol[-Q[1]], xlabel="sec", ylabel="W", label="top -Q", title="Rate of heat transfer from gas in top chamber to wall"))
 # display(plot(sol[t], sol[T[2]-273.15], xlabel="sec", ylabel="degC", label="btm T"))
