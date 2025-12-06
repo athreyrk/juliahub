@@ -1,7 +1,8 @@
 using ModelingToolkit
 using ModelingToolkit: t_nounits as t, D_nounits as der
 using DifferentialEquations
-using Plots
+using PyPlot
+using JLD2
 
 patm = 101325.0 # Pa
 k = 1.4 # gamma
@@ -168,17 +169,25 @@ eqs = [
 
 @mtkcompile sys = System(eqs, t, vars, pars)
 
-prob = ODEProblem(sys, [], (0.0, 4.0); fully_determined = true, guesses = initvals)
+print.(unknowns(sys))
 
-sol = solve(prob, Rodas5(), force_dtmin = true)
+prob = ODEProblem(sys, [], (0.0, 1200.0); fully_determined = true, guesses = initvals)
 
-plot(sol[t], sol[x[1]])
-plot!(sol[t], sol[x[2]])
-# display(plot(sol[t], sol[T[1]-273.15], xlabel="sec", ylabel="degC", label="top T"))
+sol = solve(prob, Rodas5(), force_dtmin = true, maxiters = Inf)
+timesteps = sol[t]
+walltemp = sol[Twall]
+@save "solution" timesteps walltemp
+
+# plot(sol[t], sol[T[1]-273.15], xlabel="sec", ylabel="degC", label="air")
 # display(plot(sol[t], sol[p[1]], xlabel="sec", ylabel="Pa", label="top p"))
 # display(plot(sol[t], sol[m[1]], xlabel="sec", ylabel="kg", label="top m"))
 # display(plot(sol[t], sol[m[1]/vol[1]], xlabel="sec", ylabel="kg/m^3", label="top rho"))
-display(plot(sol[t], sol[Twall-273.15], xlabel="sec", ylabel="degC", label="Twall"))
+plot(timsteps ./ 60, walltemp .- 273.15)
+gca().set_xlabel("min")
+gca().set_ylabel("degC")
+title("thermal mass temperature")
+gca().grid()
+display(gcf())
 # display(plot(sol[t], sol[-Q[1]], xlabel="sec", ylabel="W", label="top -Q", title="Rate of heat transfer from gas in top chamber to wall"))
 # display(plot(sol[t], sol[T[2]-273.15], xlabel="sec", ylabel="degC", label="btm T"))
 # display(plot(sol[t], sol[p[2]], xlabel="sec", ylabel="Pa", label="btm p"))
