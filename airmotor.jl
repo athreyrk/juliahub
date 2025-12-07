@@ -1,8 +1,7 @@
 using ModelingToolkit
 using ModelingToolkit: t_nounits as t, D_nounits as der
 using DifferentialEquations
-using PyPlot
-using JLD2
+using Plots; pyplot();
 
 patm = 101325.0 # Pa
 k = 1.4 # gamma
@@ -169,28 +168,21 @@ eqs = [
 
 @mtkcompile sys = System(eqs, t, vars, pars)
 
-print.(unknowns(sys))
+# print.(unknowns(sys),"\n")
 
 prob = ODEProblem(sys, [], (0.0, 1200.0); fully_determined = true, guesses = initvals)
 
 sol = solve(prob, Rodas5(), force_dtmin = true, maxiters = Inf)
-timesteps = sol[t]
-walltemp = sol[Twall]
-@save "solution" timesteps walltemp
 
-# plot(sol[t], sol[T[1]-273.15], xlabel="sec", ylabel="degC", label="air")
-# display(plot(sol[t], sol[p[1]], xlabel="sec", ylabel="Pa", label="top p"))
-# display(plot(sol[t], sol[m[1]], xlabel="sec", ylabel="kg", label="top m"))
-# display(plot(sol[t], sol[m[1]/vol[1]], xlabel="sec", ylabel="kg/m^3", label="top rho"))
-plot(timsteps ./ 60, walltemp .- 273.15)
-gca().set_xlabel("min")
-gca().set_ylabel("degC")
-title("thermal mass temperature")
-gca().grid()
-display(gcf())
-# display(plot(sol[t], sol[-Q[1]], xlabel="sec", ylabel="W", label="top -Q", title="Rate of heat transfer from gas in top chamber to wall"))
-# display(plot(sol[t], sol[T[2]-273.15], xlabel="sec", ylabel="degC", label="btm T"))
-# display(plot(sol[t], sol[p[2]], xlabel="sec", ylabel="Pa", label="btm p"))
-# display(plot(sol[t], sol[m[2]], xlabel="sec", ylabel="kg", label="btm m"))
-# display(plot(sol[t], sol[m[2]/vol[2]], xlabel="sec", ylabel="kg/m^3", label="btm rho"))
-# display(plot(sol[t], sol[-Q[2]], xlabel="sec", ylabel="W", label="btm -Q", title="Rate of heat transfer from gas in bottom chamber to wall"))
+plt = plot(sol[t/60], sol[Twall-273.15], label = "D = 3.0 in")
+
+diameters = (4:2:12) ./ 39.37
+
+for dia in diameters
+    prob_new = remake(prob; p=[D => dia])
+    sol_new = solve(prob_new, Rodas5(), force_dtmin = true, maxiters = Inf)
+    plot!(plt, sol_new[t/60], sol_new[Twall-273.15], label = "D = $(dia*39.37) in")
+end
+
+plot!(plt, xlabel="min", ylabel="degC", title="wall temperature")
+savefig(plt, "twall_dias.png")
