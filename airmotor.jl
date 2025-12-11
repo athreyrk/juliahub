@@ -1,7 +1,7 @@
 using ModelingToolkit
 using ModelingToolkit: t_nounits as t, D_nounits as der
 using DifferentialEquations
-using Plots; pyplot();
+using Printf
 
 patm = 101325.0 # Pa
 k = 1.4 # gamma
@@ -174,15 +174,100 @@ prob = ODEProblem(sys, [], (0.0, 1200.0); fully_determined = true, guesses = ini
 
 sol = solve(prob, Rodas5(), force_dtmin = true, maxiters = Inf)
 
-plt = plot(sol[t/60], sol[Twall-273.15], label = "D = 3.0 in")
+import Plots; Plots.pythonplot()
 
-diameters = (4:2:12) ./ 39.37
+pleft = Plots.plot(sol[t/60], sol[Q[1]+Q[2]], label="from wall into both chambers (combined)", legend=:topleft, ylabel="W", color=Plots.theme_palette(:default)[1])
+Plots.plot!(pleft
+    , y_guidefontcolor=Plots.theme_palette(:default)[1]
+    , y_foreground_color_axis=Plots.theme_palette(:default)[1]
+    , y_foreground_color_text=Plots.theme_palette(:default)[1]
+    , y_foreground_color_border=Plots.theme_palette(:default)[1]
+    )
+# pleft = Plots.plot(sol[t], sol[Q[1]+Q[2]], label = "Me (D = 3 in)", legend=:topleft, color=1)
+pright = Plots.twinx();
+Plots.plot!(pright, sol[t/60], sol[hext*pi*D*L*(Tatm-Twall)], label="from atmosphere into wall", xticks=:none, ylabel="W", color=Plots.theme_palette(:default)[2])
+Plots.plot!(pright
+    , y_guidefontcolor=Plots.theme_palette(:default)[2]
+    , y_foreground_color_axis=Plots.theme_palette(:default)[2]
+    , y_foreground_color_text=Plots.theme_palette(:default)[2]
+    , y_foreground_color_border=Plots.theme_palette(:default)[2]
+    )
+
+Plots.plot!(pright, xlabel="\nmin", title="Rate of heat transfer", thickness_scaling=2)
+# plot!(pleft, sol_new[t], sol_new[Me[1]], label = "Me (D = 18 in)", color=3)
+# plot!(pright, sol_new[t], sol_new[pr[1]], label = "pr (D = 18 in)", xticks=:none, color=4)
+
+
+# import PlotlyJS
+
+# pl = plot(
+#     [
+#         scatter(x=sol[t], y=sol[Q[1]+Q[2]], name="Q[1]+Q[2]")
+#     ]
+#     , Layout(
+#         title_text="rate of heat transfer from wall into chambers",
+#         xaxis_title_text="sec",
+#         yaxis_title_text="W"
+#         # ,
+#         # yaxis2=attr(
+#         #     title="pr",
+#         #     overlaying="y",
+#         #     side="right"
+#         # )
+#     )
+# )
+
+# ptemp = plot(
+#     [
+#         scatter(x=sol[t], y=sol[getfield(equations(sys)[7], :rhs)], name="der(Twall)")
+#     ]
+#     , Layout(
+#         title_text="rate of wall temperature",
+#         xaxis_title_text="sec",
+#         yaxis_title_text="K/s"
+#     )
+# )
+
+# plotatm = plot(
+#     scatter(x=sol[t], y=sol[hext * pi * D * L * (Twall - Tatm)], name="qatm")
+#     , Layout(
+#         title_text="rate of heat transfer from wall to atm",
+#         xaxis_title_text="sec",
+#         yaxis_title_text="K/s"
+#     )
+# )
+
+# prob_new = remake(prob; p=[D => 18/39.37])
+# sol_new = solve(prob_new, Rodas5(), force_dtmin = true)#, maxiters = Inf)
+
+# pl = plot(
+#     [
+#         scatter(x=sol[t], y=sol[Me[1]], name="Me (D=3)"),
+#         scatter(x=sol_new[t], y=sol_new[Me[1]], name="Me (D=18)"),
+#         scatter(x=sol[t], y=sol[pr[1]], name="pr (D=3)", yaxis="y2"),
+#         scatter(x=sol_new[t], y=sol_new[pr[1]], name="pr (D=18)", yaxis="y2")
+#     ],
+#     Layout(
+#         title_text="Me and pr",
+#         xaxis_title_text="sec",
+#         yaxis_title_text="Me",
+#         yaxis2=attr(
+#             title="pr",
+#             overlaying="y",
+#             side="right"
+#         )
+#     )
+# )
+
+pfirst = Plots.plot(sol[t/60], sol[Twall-273.15], label="D = 3.0 in")
+
+diameters = [8 9 13 18] ./ 39.37
 
 for dia in diameters
     prob_new = remake(prob; p=[D => dia])
     sol_new = solve(prob_new, Rodas5(), force_dtmin = true, maxiters = Inf)
-    plot!(plt, sol_new[t/60], sol_new[Twall-273.15], label = "D = $(dia*39.37) in")
+    Plots.plot!(pfirst, sol_new[t/60], sol_new[Twall-273.15], label = "D = $(@sprintf("%.1f",dia*39.37)) in")
 end
 
-plot!(plt, xlabel="min", ylabel="degC", title="wall temperature")
-savefig(plt, "twall_dias.png")
+Plots.plot!(pfirst, xlabel="min", ylabel="degC", title="wall temperature", thickness_scaling=2)
+# savefig(plt, "twall_dias_no_freezing.png")
