@@ -168,106 +168,92 @@ eqs = [
 
 @mtkcompile sys = System(eqs, t, vars, pars)
 
-# print.(unknowns(sys),"\n")
+prob = ODEProblem(sys, [], (0.0, 7.2); fully_determined = true, guesses = initvals)
 
-prob = ODEProblem(sys, [], (0.0, 1200.0); fully_determined = true, guesses = initvals)
+sol = solve(prob, Rodas5(), force_dtmin = true)#, maxiters = Inf)
 
-sol = solve(prob, Rodas5(), force_dtmin = true, maxiters = Inf)
-
-import Plots; Plots.pythonplot()
-
-pleft = Plots.plot(sol[t/60], sol[Q[1]+Q[2]], label="from wall into both chambers (combined)", legend=:topleft, ylabel="W", color=Plots.theme_palette(:default)[1])
-Plots.plot!(pleft
-    , y_guidefontcolor=Plots.theme_palette(:default)[1]
-    , y_foreground_color_axis=Plots.theme_palette(:default)[1]
-    , y_foreground_color_text=Plots.theme_palette(:default)[1]
-    , y_foreground_color_border=Plots.theme_palette(:default)[1]
-    )
-# pleft = Plots.plot(sol[t], sol[Q[1]+Q[2]], label = "Me (D = 3 in)", legend=:topleft, color=1)
-pright = Plots.twinx();
-Plots.plot!(pright, sol[t/60], sol[hext*pi*D*L*(Tatm-Twall)], label="from atmosphere into wall", xticks=:none, ylabel="W", color=Plots.theme_palette(:default)[2])
-Plots.plot!(pright
-    , y_guidefontcolor=Plots.theme_palette(:default)[2]
-    , y_foreground_color_axis=Plots.theme_palette(:default)[2]
-    , y_foreground_color_text=Plots.theme_palette(:default)[2]
-    , y_foreground_color_border=Plots.theme_palette(:default)[2]
-    )
-
-Plots.plot!(pright, xlabel="\nmin", title="Rate of heat transfer", thickness_scaling=2)
-# plot!(pleft, sol_new[t], sol_new[Me[1]], label = "Me (D = 18 in)", color=3)
-# plot!(pright, sol_new[t], sol_new[pr[1]], label = "pr (D = 18 in)", xticks=:none, color=4)
-
-
-# import PlotlyJS
-
-# pl = plot(
-#     [
-#         scatter(x=sol[t], y=sol[Q[1]+Q[2]], name="Q[1]+Q[2]")
-#     ]
-#     , Layout(
-#         title_text="rate of heat transfer from wall into chambers",
-#         xaxis_title_text="sec",
-#         yaxis_title_text="W"
-#         # ,
-#         # yaxis2=attr(
-#         #     title="pr",
-#         #     overlaying="y",
-#         #     side="right"
-#         # )
-#     )
-# )
-
-# ptemp = plot(
-#     [
-#         scatter(x=sol[t], y=sol[getfield(equations(sys)[7], :rhs)], name="der(Twall)")
-#     ]
-#     , Layout(
-#         title_text="rate of wall temperature",
-#         xaxis_title_text="sec",
-#         yaxis_title_text="K/s"
-#     )
-# )
-
-# plotatm = plot(
-#     scatter(x=sol[t], y=sol[hext * pi * D * L * (Twall - Tatm)], name="qatm")
-#     , Layout(
-#         title_text="rate of heat transfer from wall to atm",
-#         xaxis_title_text="sec",
-#         yaxis_title_text="K/s"
-#     )
-# )
-
-# prob_new = remake(prob; p=[D => 18/39.37])
-# sol_new = solve(prob_new, Rodas5(), force_dtmin = true)#, maxiters = Inf)
-
-# pl = plot(
-#     [
-#         scatter(x=sol[t], y=sol[Me[1]], name="Me (D=3)"),
-#         scatter(x=sol_new[t], y=sol_new[Me[1]], name="Me (D=18)"),
-#         scatter(x=sol[t], y=sol[pr[1]], name="pr (D=3)", yaxis="y2"),
-#         scatter(x=sol_new[t], y=sol_new[pr[1]], name="pr (D=18)", yaxis="y2")
-#     ],
-#     Layout(
-#         title_text="Me and pr",
-#         xaxis_title_text="sec",
-#         yaxis_title_text="Me",
-#         yaxis2=attr(
-#             title="pr",
-#             overlaying="y",
-#             side="right"
-#         )
-#     )
-# )
-
-pfirst = Plots.plot(sol[t/60], sol[Twall-273.15], label="D = 3.0 in")
-
-diameters = [8 9 13 18] ./ 39.37
-
+diameters = [8,9,13] ./ 39.37
+all_sols = []
 for dia in diameters
     prob_new = remake(prob; p=[D => dia])
     sol_new = solve(prob_new, Rodas5(), force_dtmin = true, maxiters = Inf)
-    Plots.plot!(pfirst, sol_new[t/60], sol_new[Twall-273.15], label = "D = $(@sprintf("%.1f",dia*39.37)) in")
+    push!(all_sols, sol_new)
+    # Plots.plot!(pfirst, sol_new[t], sol_new[Q[1]+Q[2]], label = "D = $(@sprintf("%.1f",dia*39.37)) in")
 end
 
-Plots.plot!(pfirst, xlabel="min", ylabel="degC", title="wall temperature", thickness_scaling=2)
+import PlotlyJS
+
+spl = [PlotlyJS.scatter(x=sol[t], y=sol[T[1]-273.15], name="T1 (D = 3.0 in)")]
+for (dia, sol) in zip(diameters, all_sols)
+    push!(spl, PlotlyJS.scatter(x=sol[t], y=sol[T[1]-273.15], name="T1 (D = $(@sprintf("%.1f",dia*39.37)) in)"))
+end
+
+pl = PlotlyJS.plot(spl, PlotlyJS.Layout(
+    title_text="temperature in top chamber"
+    , xaxis_title_text="sec"
+    , yaxis_title_text="degC"
+    ,
+    font = PlotlyJS.attr(
+        family="\"Open Sans\", verdana, arial, sans-serif",
+        size=24
+    )
+))
+
+spr = [PlotlyJS.scatter(x=sol[t], y=sol[Q[1]], name="Q1 (D = 3.0 in)", yaxis="y2")]
+for (dia, sol) in zip(diameters, all_sols)
+    push!(spr, PlotlyJS.scatter(x=sol[t], y=sol[Q[1]], name="Q1 (D = $(@sprintf("%.1f",dia*39.37)) in)", yaxis="y2"))
+end
+
+ply2 = PlotlyJS.plot(
+    vcat(spl, spr)
+    , PlotlyJS.Layout(
+        title_text="T1 and Q1"
+        , xaxis_title_text="sec"
+        , yaxis_title_text="T1 (degC)"
+        , yaxis2=PlotlyJS.attr(
+            title="Q1 (W)"
+            , overlaying="y"
+            , side="right"
+        )
+    )
+)
+
+# PlotlyJS.add_hline!(pl, Tatm, name="Tatm")
+
 # savefig(plt, "twall_dias_no_freezing.png")
+
+# import Plots; Plots.pythonplot()
+
+# derm2 = getfield(equations(sys)[8], :rhs)
+# derp2 = getfield(equations(sys)[9], :rhs)
+# derT2 = getfield(equations(sys)[11], :rhs)
+# derm1 = getfield(equations(sys)[13], :rhs)
+# derp1 = getfield(equations(sys)[14], :rhs)
+# derT1 = getfield(equations(sys)[16], :rhs)
+# derv1 = getfield(observed(sys)[6], :rhs)
+# derv2 = getfield(observed(sys)[15], :rhs)
+
+# pfirst = Plots.plot(sol[t], sol[m[1]*cv*T[1]*derp1/p[1] - derm1*(cp*Te[1] + 1/2 * Ve[1]^2)], label="f(derp/p)")
+# Plots.plot!(pfirst, sol[t], sol[m[1]*cp*T[1]*derv1/vol[1]], label="f(derv/v)")
+# Plots.plot!(pfirst, sol[t], sol[derm1*(cp*Te[1] + 1/2 * Ve[1]^2)], label="derm*cp*Tt")
+
+# pleft = Plots.plot(sol[t], sol[Q[1]+Q[2]], label="Q1+Q2", legend=:topleft, ylabel="W", color=Plots.theme_palette(:default)[1])
+# Plots.plot!(pleft
+#     , y_guidefontcolor=Plots.theme_palette(:default)[1]
+#     , y_foreground_color_axis=Plots.theme_palette(:default)[1]
+#     , y_foreground_color_text=Plots.theme_palette(:default)[1]
+#     , y_foreground_color_border=Plots.theme_palette(:default)[1]
+#     )
+# pright = Plots.twinx();
+# Plots.plot!(pright, sol[t], sol[Me[1]], label="Me[1]", xticks=:none, color=Plots.theme_palette(:default)[2])
+# Plots.plot!(pright, sol[t], sol[Me[2]], label="Me[2]", xticks=:none, color=Plots.theme_palette(:default)[3])
+# Plots.plot!(pright
+#     , y_guidefontcolor=Plots.theme_palette(:default)[2]
+#     , y_foreground_color_axis=Plots.theme_palette(:default)[2]
+#     , y_foreground_color_text=Plots.theme_palette(:default)[2]
+#     , y_foreground_color_border=Plots.theme_palette(:default)[2]
+#     )
+
+# Plots.plot!(pright, xlabel="\nsec", thickness_scaling=2)
+# plot!(pleft, sol_new[t], sol_new[Me[1]], label = "Me (D = 18 in)", color=3)
+# plot!(pright, sol_new[t], sol_new[pr[1]], label = "pr (D = 18 in)", xticks=:none, color=4)
