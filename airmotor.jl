@@ -168,11 +168,11 @@ eqs = [
 
 @mtkcompile sys = System(eqs, t, vars, pars)
 
-prob = ODEProblem(sys, [], (0.0, 7.2); fully_determined = true, guesses = initvals)
+prob = ODEProblem(sys, [], (0.0, 10.8); fully_determined = true, guesses = initvals)
 
-sol = solve(prob, Rodas5(), force_dtmin = true)#, maxiters = Inf)
+sol = solve(prob, Rodas5(), force_dtmin = true, maxiters = Inf)
 
-diameters = [8,9,13] ./ 39.37
+diameters = (4:1:6) ./ 39.37
 all_sols = []
 for dia in diameters
     prob_new = remake(prob; p=[D => dia])
@@ -181,46 +181,55 @@ for dia in diameters
     # Plots.plot!(pfirst, sol_new[t], sol_new[Q[1]+Q[2]], label = "D = $(@sprintf("%.1f",dia*39.37)) in")
 end
 
+diameters = pushfirst!(collect(diameters), prob.ps[sys.D])
+pushfirst!(all_sols, sol)
+
 import PlotlyJS
 
-spl = [PlotlyJS.scatter(x=sol[t], y=sol[T[1]-273.15], name="T1 (D = 3.0 in)")]
+# spl = [PlotlyJS.scatter(x=sol[t], y=sol[m[1]*1000], name="m1 (D = 3.0 in)")]
+spl = []
 for (dia, sol) in zip(diameters, all_sols)
-    push!(spl, PlotlyJS.scatter(x=sol[t], y=sol[T[1]-273.15], name="T1 (D = $(@sprintf("%.1f",dia*39.37)) in)"))
+    push!(spl, PlotlyJS.scatter(x=sol[t], y=sol[Ve[1]], name="Ve (D = $(@sprintf("%.1f",dia*39.37)) in)"))
 end
+spl = [promote(spl...)...]
 
 pl = PlotlyJS.plot(spl, PlotlyJS.Layout(
-    title_text="temperature in top chamber"
+    title_text="Velocity at inlet/exit"
     , xaxis_title_text="sec"
-    , yaxis_title_text="degC"
-    ,
-    font = PlotlyJS.attr(
-        family="\"Open Sans\", verdana, arial, sans-serif",
-        size=24
-    )
+    , yaxis_title_text="m/s"
+    # ,
+    # font = PlotlyJS.attr(
+    #     family="\"Open Sans\", verdana, arial, sans-serif",
+    #     size=24
+    # )
 ))
 
-spr = [PlotlyJS.scatter(x=sol[t], y=sol[Q[1]], name="Q1 (D = 3.0 in)", yaxis="y2")]
-for (dia, sol) in zip(diameters, all_sols)
-    push!(spr, PlotlyJS.scatter(x=sol[t], y=sol[Q[1]], name="Q1 (D = $(@sprintf("%.1f",dia*39.37)) in)", yaxis="y2"))
-end
+# spr = [PlotlyJS.scatter(x=sol[t], y=sol[T[1]-273.15], name="T1 (D = 3.0 in)", yaxis="y2")]
+# for (dia, sol) in zip(diameters, all_sols)
+#     push!(spr, PlotlyJS.scatter(x=sol[t], y=sol[T[1]-273.15], name="T1 (D = $(@sprintf("%.1f",dia*39.37)) in)", yaxis="y2"))
+# end
+# spr = [PlotlyJS.scatter(x=sol[t], y=sol[hext * pi * D * L * (Twall - Tatm)], name="Qatm (D = 3.0 in)", yaxis="y2")]
+# for (dia, sol) in zip(diameters, all_sols)
+#     push!(spr, PlotlyJS.scatter(x=sol[t], y=sol[hext * pi * D * L * (Twall - Tatm)], name="Qatm (D = $(@sprintf("%.1f",dia*39.37)) in)", yaxis="y2"))
+# end
 
-ply2 = PlotlyJS.plot(
-    vcat(spl, spr)
-    , PlotlyJS.Layout(
-        title_text="T1 and Q1"
-        , xaxis_title_text="sec"
-        , yaxis_title_text="T1 (degC)"
-        , yaxis2=PlotlyJS.attr(
-            title="Q1 (W)"
-            , overlaying="y"
-            , side="right"
-        )
-    )
-)
+# ply2 = PlotlyJS.plot(
+#     vcat(spl, spr)
+#     , PlotlyJS.Layout(
+#         title_text="Q"
+#         , xaxis_title_text="sec"
+#         , yaxis_title_text="Q[1]+Q[2] (W)"
+#         , yaxis2=PlotlyJS.attr(
+#             title="Qatm (W)"
+#             , overlaying="y"
+#             , side="right"
+#         )
+#     )
+# )
 
 # PlotlyJS.add_hline!(pl, Tatm, name="Tatm")
 
-# savefig(plt, "twall_dias_no_freezing.png")
+PlotlyJS.savefig(pl, "plots/twall_dias.png")
 
 # import Plots; Plots.pythonplot()
 
